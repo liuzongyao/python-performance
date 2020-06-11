@@ -1,0 +1,32 @@
+#!/bin/bash
+read -p "请选择chart（回车默认stable/jenkins): " chart
+if [[ ! $chart ]]
+then
+        chart='stable/jenkins'
+fi
+echo $chart
+helm search $chart -l |awk '{print $2}'
+read -p '输入chart版本(回车默认最新): ' version
+if [[ ! $version ]]
+then
+        version=`helm search $chart -l |awk '{print $2}'| sed -n 2p`
+fi
+echo $version
+read -p '输入仓库地址(回车默认docker info): ' registry
+if [[ ! $registry ]]
+then
+        registry=`docker info |grep 60080|sed -n 1p`
+fi
+echo $registry
+info=`helm inspect $chart --version $version |  grep -Ew 'repository:|tag:' | sed '/None/,+1d'`
+repository=`echo "'$info'" |sed -n 'p;n' |tr -d "'"|awk '{print $2}'`
+tag=`echo "'$info'" |sed -n 'n;p'|tr -d "'"|awk '{print $2}'`
+num=`echo "'$tag'" |wc -l`
+for i in `seq 1 $num`
+do
+image=`echo "'$repository'" |tr -d "'"|sed -n ''$i'p'`
+ta=`echo "'$tag'"|tr -d "'" |sed -n ''$i'p'`
+docker pull index.alauda.cn/$image:$ta
+docker tag index.alauda.cn/$image:$ta $registry/$image:$ta
+docker push $registry/$image:$ta
+done
